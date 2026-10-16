@@ -1,0 +1,142 @@
+{{if .Notice}}<div class="admin-alert admin-alert-success">{{.Notice}}</div>{{end}}
+{{if .Error}}<div class="admin-alert admin-alert-danger">{{.Error}}</div>{{end}}
+
+<div class="admin-page-actions" style="margin-bottom:1rem;display:flex;gap:.5rem;flex-wrap:wrap;">
+  <a class="btn-admin-outline" href="{{.LogURL}}" data-turbo-frame="_top"><i class="bi bi-journal-text"></i> Backup Log</a>
+  <a class="btn-admin-outline" href="{{.SettingsURL}}" data-turbo-frame="_top"><i class="bi bi-sliders"></i> Schedule</a>
+</div>
+
+<div class="admin-data-card" style="margin-bottom:1.25rem;">
+  <div class="admin-data-card-header">
+    <div class="admin-data-card-summary-main">
+      <h2 class="admin-data-card-title">1. Google OAuth credentials</h2>
+      <p class="admin-data-card-desc">
+        Create your own OAuth client ID (recommended by
+        <a href="{{.DocsDriveURL}}" target="_blank" rel="noopener">rclone Drive docs</a>).
+        Use application type <strong>Web application</strong> and add this authorized redirect URI.
+        Path is fixed (<code>/admin/extension-apps/cannon-ext-backup-gdrive/oauth/callback</code>);
+        only the host follows where you browse admin (Host / <code>X-Forwarded-*</code>):
+      </p>
+      <p><code>{{if .RedirectURL}}{{.RedirectURL}}{{else}}(could not detect request host){{end}}</code></p>
+      <p class="admin-cell-muted">
+        Guide:
+        <a href="{{.DocsClientURL}}" target="_blank" rel="noopener">Making your own client ID</a>
+      </p>
+    </div>
+  </div>
+  <form method="post" action="{{.BasePath}}/setup/credentials" style="padding:1rem;display:grid;gap:1rem;max-width:40rem;">
+    {{.CSRFField}}
+    <label>
+      <span class="admin-form-label">Client ID</span>
+      <input class="admin-form-control" type="text" name="client_id" value="{{.Conn.ClientID}}" required autocomplete="off">
+    </label>
+    <label>
+      <span class="admin-form-label">Client Secret</span>
+      <input class="admin-form-control" type="password" name="client_secret" value="" placeholder="{{if .Conn.ClientSecret}}•••••••• (unchanged if left blank){{else}}Required{{end}}" autocomplete="off" {{if not .Conn.ClientSecret}}required{{end}}>
+    </label>
+    <div>
+      <button type="submit" class="btn-admin-primary">Save credentials</button>
+    </div>
+  </form>
+</div>
+
+<div class="admin-data-card" style="margin-bottom:1.25rem;">
+  <div class="admin-data-card-header">
+    <div class="admin-data-card-summary-main">
+      <h2 class="admin-data-card-title">2. Connect Google Drive</h2>
+      <p class="admin-data-card-desc">
+        Opens Google's consent screen and stores a refresh token (same pattern as
+        <a href="{{.DocsDriveURL}}" target="_blank" rel="noopener">rclone config</a>).
+        Scope: <code>https://www.googleapis.com/auth/drive</code>.
+      </p>
+    </div>
+  </div>
+  <div style="padding:1rem;display:flex;gap:.75rem;flex-wrap:wrap;align-items:center;">
+    {{if .Connected}}
+      <span class="admin-badge admin-badge-active"><span class="admin-badge-dot"></span>Connected{{if .AccountEmail}} — {{.AccountEmail}}{{end}}</span>
+      <form method="post" action="{{.BasePath}}/setup/disconnect" class="admin-inline-form" data-turbo="false">
+        {{.CSRFField}}
+        <button type="submit" class="btn-admin-outline">Disconnect</button>
+      </form>
+      {{/* Full-page navigation: Turbo aborts cross-origin redirects to accounts.google.com */}}
+      <a class="btn-admin-outline" href="{{.BasePath}}/setup/connect" data-turbo="false">Reconnect</a>
+    {{else}}
+      {{if and .Conn.ClientID .Conn.ClientSecret}}
+      <a class="btn-admin-primary" href="{{.BasePath}}/setup/connect" data-turbo="false">
+        <i class="bi bi-box-arrow-up-right"></i> Connect Google Drive
+      </a>
+      {{else}}
+      <button type="button" class="btn-admin-primary" disabled>
+        <i class="bi bi-box-arrow-up-right"></i> Connect Google Drive
+      </button>
+      <span class="admin-cell-muted">Save client ID and secret first.</span>
+      {{end}}
+    {{end}}
+  </div>
+</div>
+
+<div class="admin-data-card">
+  <div class="admin-data-card-header">
+    <div class="admin-data-card-summary-main">
+      <h2 class="admin-data-card-title">3. Choose backup folder</h2>
+      <p class="admin-data-card-desc">
+        Backups are uploaded into the selected folder as <code>cannon-backup-YYYYMMDD-HHMMSS.tar.gz</code>.
+        {{if .Ready}}Current: <strong>{{.Conn.FolderName}}</strong>{{end}}
+      </p>
+    </div>
+  </div>
+  {{if not .Connected}}
+  <p class="admin-cell-muted" style="padding:1rem;">Connect Google Drive to browse folders.</p>
+  {{else if .FolderError}}
+  <div class="admin-alert admin-alert-danger" style="margin:1rem;">{{.FolderError}}</div>
+  {{else}}
+  <div style="padding:1rem;">
+    <p class="admin-cell-muted" style="margin-bottom:.75rem;">Browsing: {{.ParentLabel}}
+      {{if .ParentID}}
+      · <a href="{{.BasePath}}/setup" data-turbo-frame="_top">Back to My Drive root</a>
+      {{end}}
+    </p>
+    <div class="admin-table-scroll">
+      <table class="admin-table">
+        <thead>
+          <tr>
+            <th>Folder</th>
+            <th class="admin-col-actions"></th>
+          </tr>
+        </thead>
+        <tbody>
+          {{range .Folders}}
+          <tr>
+            <td>
+              <a href="{{$.BasePath}}/setup?parent={{.ID}}" data-turbo-frame="_top">
+                <i class="bi bi-folder"></i> {{.Name}}
+              </a>
+            </td>
+            <td class="admin-col-actions">
+              <form method="post" action="{{$.BasePath}}/setup/folder" class="admin-inline-form">
+                {{$.CSRFField}}
+                <input type="hidden" name="folder_id" value="{{.ID}}">
+                <input type="hidden" name="folder_name" value="{{.Name}}">
+                <button type="submit" class="btn-admin-outline btn-admin-sm">Use this folder</button>
+              </form>
+            </td>
+          </tr>
+          {{else}}
+          <tr>
+            <td colspan="2" class="admin-cell-muted">No subfolders here. Create a folder in Drive, then refresh.</td>
+          </tr>
+          {{end}}
+        </tbody>
+      </table>
+    </div>
+    {{if and .ParentID (ne .ParentID "root")}}
+    <form method="post" action="{{.BasePath}}/setup/folder" style="margin-top:1rem;">
+      {{.CSRFField}}
+      <input type="hidden" name="folder_id" value="{{.ParentID}}">
+      <input type="hidden" name="folder_name" value="{{.ParentLabel}}">
+      <button type="submit" class="btn-admin-primary">Use current folder</button>
+    </form>
+    {{end}}
+  </div>
+  {{end}}
+</div>

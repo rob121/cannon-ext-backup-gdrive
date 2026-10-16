@@ -1,0 +1,411 @@
+{{if .Notice}}<div class="admin-alert admin-alert-success">{{.Notice}}</div>{{end}}
+{{if .Error}}<div class="admin-alert admin-alert-danger">{{.Error}}</div>{{end}}
+
+<div class="backup-extension-header">
+  <nav class="backup-tabs" aria-label="Backup sections">
+    <a class="backup-tab is-active" href="{{.BasePath}}" data-turbo-frame="_top">Backups</a>
+    <a class="backup-tab" href="{{.SetupURL}}" data-turbo-frame="_top">Setup</a>
+    <a class="backup-tab" href="{{.SettingsURL}}" data-turbo-frame="_top">Schedule</a>
+  </nav>
+  <div class="backup-header-actions">
+    {{if .Status.Ready}}
+    <form method="post" action="{{.BasePath}}/backup-now" class="admin-inline-form" data-turbo="false">
+      {{.CSRFField}}
+      <button type="submit" class="btn-admin-primary" {{if .Running}}disabled{{end}}>
+        <i class="bi bi-cloud-upload"></i>
+        {{if .Running}}Backing up…{{else}}Backup Now{{end}}
+      </button>
+    </form>
+    {{else}}
+    <a class="btn-admin-primary" href="{{.Status.NextURL}}" data-turbo-frame="_top">
+      <i class="bi bi-arrow-right-circle"></i> {{.Status.NextLabel}}
+    </a>
+    {{end}}
+  </div>
+</div>
+
+<section class="backup-status backup-status-{{.Status.Tone}}" aria-label="Backup readiness">
+  <div class="backup-status-main">
+    <div class="backup-status-icon" aria-hidden="true">
+      {{if eq .Status.Tone "success"}}<i class="bi bi-check-circle-fill"></i>
+      {{else if eq .Status.Tone "warning"}}<i class="bi bi-exclamation-circle-fill"></i>
+      {{else}}<i class="bi bi-gear-wide-connected"></i>{{end}}
+    </div>
+    <div class="backup-status-copy">
+      <div class="backup-status-kicker">
+        Setup {{.Status.CompletedSteps}} of {{.Status.TotalSteps}}
+        {{if .Status.Ready}}
+        <span class="admin-badge admin-badge-active"><span class="admin-badge-dot"></span>Ready</span>
+        {{else}}
+        <span class="admin-badge admin-badge-warning"><span class="admin-badge-dot"></span>Incomplete</span>
+        {{end}}
+      </div>
+      <h2 class="backup-status-title">{{.Status.Headline}}</h2>
+      <p class="backup-status-detail">{{.Status.Detail}}</p>
+    </div>
+  </div>
+  {{if and .Status.Ready (not .Status.ScheduleOn)}}
+  <div class="backup-status-aside">
+    <a class="btn-admin-outline btn-admin-sm" href="{{.SettingsURL}}" data-turbo-frame="_top">
+      <i class="bi bi-clock"></i> Enable schedule
+    </a>
+  </div>
+  {{else if and (not .Status.Ready) .Status.NextURL}}
+  <div class="backup-status-aside">
+    <a class="btn-admin-outline btn-admin-sm" href="{{.Status.NextURL}}" data-turbo-frame="_top">Continue setup</a>
+  </div>
+  {{end}}
+</section>
+
+<ol class="backup-checklist">
+  <li class="backup-check {{if .Status.HasCredentials}}is-done{{end}}">
+    <span class="backup-check-mark" aria-hidden="true">{{if .Status.HasCredentials}}<i class="bi bi-check-lg"></i>{{else}}1{{end}}</span>
+    <div class="backup-check-body">
+      <strong>OAuth credentials</strong>
+      <span>{{if .Status.HasCredentials}}Client ID saved{{else}}Add client ID and secret{{end}}</span>
+    </div>
+    <a class="backup-check-link" href="{{.SetupURL}}" data-turbo-frame="_top">{{if .Status.HasCredentials}}Edit{{else}}Add{{end}}</a>
+  </li>
+  <li class="backup-check {{if .Status.Connected}}is-done{{else if .Status.HasCredentials}}is-current{{end}}">
+    <span class="backup-check-mark" aria-hidden="true">{{if .Status.Connected}}<i class="bi bi-check-lg"></i>{{else}}2{{end}}</span>
+    <div class="backup-check-body">
+      <strong>Google Drive account</strong>
+      <span>{{if .Status.Connected}}{{if .Status.AccountEmail}}{{.Status.AccountEmail}}{{else}}Connected{{end}}{{else}}Authorize Google Drive access{{end}}</span>
+    </div>
+    <a class="backup-check-link" href="{{.SetupURL}}" data-turbo-frame="_top">{{if .Status.Connected}}Manage{{else}}Connect{{end}}</a>
+  </li>
+  <li class="backup-check {{if .Status.HasFolder}}is-done{{else if .Status.Connected}}is-current{{end}}">
+    <span class="backup-check-mark" aria-hidden="true">{{if .Status.HasFolder}}<i class="bi bi-check-lg"></i>{{else}}3{{end}}</span>
+    <div class="backup-check-body">
+      <strong>Backup folder</strong>
+      <span>{{if .Status.HasFolder}}{{.Status.FolderName}}{{else}}Select a Drive folder for archives{{end}}</span>
+    </div>
+    <a class="backup-check-link" href="{{.SetupURL}}" data-turbo-frame="_top">{{if .Status.HasFolder}}Change{{else}}Choose{{end}}</a>
+  </li>
+</ol>
+
+<div class="backup-meta-row">
+  <div class="backup-meta-card">
+    <span class="backup-meta-label">Schedule</span>
+    <strong>
+      {{if .Status.ScheduleOn}}
+      <span class="admin-badge admin-badge-active"><span class="admin-badge-dot"></span>On</span>
+      {{else}}
+      <span class="admin-badge admin-badge-inactive"><span class="admin-badge-dot"></span>Off</span>
+      {{end}}
+    </strong>
+    <span class="admin-cell-muted">{{.Status.Frequency}}{{if gt .Status.RetainCount 0}} · keep {{.Status.RetainCount}}{{end}}</span>
+    <a href="{{.SettingsURL}}" data-turbo-frame="_top">Configure</a>
+  </div>
+  <div class="backup-meta-card">
+    <span class="backup-meta-label">Last backup</span>
+    {{if .Status.LastStatus}}
+    <strong>{{statusBadge .Status.LastStatus}}</strong>
+    <span class="admin-cell-muted">{{formatTime .Status.LastStartedAt}}{{if .Status.LastArchiveName}} · {{.Status.LastArchiveName}}{{end}}</span>
+    {{else}}
+    <strong class="admin-cell-muted">None yet</strong>
+    <span class="admin-cell-muted">Run Backup Now after setup</span>
+    {{end}}
+  </div>
+  <div class="backup-meta-card">
+    <span class="backup-meta-label">What is backed up</span>
+    <strong>data_root + sites.json</strong>
+    <span class="admin-cell-muted">Uploaded as <code>cannon-backup-*.tar.gz</code></span>
+  </div>
+</div>
+
+<div class="admin-data-card">
+  <div class="admin-data-card-header backup-card-header">
+    <div class="admin-data-card-summary-main">
+      <h2 class="admin-data-card-title">Backup history</h2>
+      <p class="admin-data-card-desc">{{.Total}} recorded run{{if ne .Total 1}}s{{end}}</p>
+    </div>
+    {{if .Status.Ready}}
+    <form method="post" action="{{.BasePath}}/backup-now" class="admin-inline-form" data-turbo="false">
+      {{.CSRFField}}
+      <button type="submit" class="btn-admin-outline btn-admin-sm" {{if .Running}}disabled{{end}}>
+        <i class="bi bi-cloud-upload"></i> Backup Now
+      </button>
+    </form>
+    {{end}}
+  </div>
+  <div class="admin-table-scroll">
+    <table class="admin-table">
+      <thead>
+        <tr>
+          <th>Started</th>
+          <th>Finished</th>
+          <th>Status</th>
+          <th>Trigger</th>
+          <th>Archive</th>
+          <th>Size</th>
+          <th>Details</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{range .Rows}}
+        <tr>
+          <td>{{formatTime .StartedAt}}</td>
+          <td>{{formatTime .FinishedAt}}</td>
+          <td>{{statusBadge .Status}}</td>
+          <td><span class="backup-trigger">{{.Trigger}}</span></td>
+          <td><span class="admin-cell-primary">{{if .ArchiveName}}{{.ArchiveName}}{{else}}—{{end}}</span></td>
+          <td>{{if .Bytes}}{{formatBytes .Bytes}}{{else}}—{{end}}</td>
+          <td class="admin-cell-muted">{{if .ErrorMessage}}{{.ErrorMessage}}{{else}}—{{end}}</td>
+        </tr>
+        {{else}}
+        <tr>
+          <td colspan="7" class="admin-table-empty-cell">
+            <div class="admin-empty-state">
+              <div class="admin-empty-state-icon"><i class="bi bi-cloud-arrow-up"></i></div>
+              <div class="admin-empty-state-title">No backups yet</div>
+              <p class="admin-empty-state-desc">
+                {{if .Status.Ready}}
+                Everything is configured. Run your first backup whenever you are ready.
+                {{else}}
+                Finish setup, then your backup history will appear here.
+                {{end}}
+              </p>
+              <div class="admin-empty-state-action">
+                {{if .Status.Ready}}
+                <form method="post" action="{{.BasePath}}/backup-now" class="admin-inline-form" data-turbo="false">
+                  {{.CSRFField}}
+                  <button type="submit" class="btn-admin-primary btn-admin-sm" {{if .Running}}disabled{{end}}>
+                    <i class="bi bi-cloud-upload"></i> Backup Now
+                  </button>
+                </form>
+                {{else}}
+                <a class="btn-admin-primary btn-admin-sm" href="{{.Status.NextURL}}" data-turbo-frame="_top">{{.Status.NextLabel}}</a>
+                {{end}}
+              </div>
+            </div>
+          </td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+  </div>
+  {{if gt .PageCount 1}}
+  <div class="admin-pagination">
+    <span class="admin-pagination-summary">Page <strong>{{.Page}}</strong> of <strong>{{.PageCount}}</strong></span>
+    <div class="admin-pagination-actions">
+      {{if gt .Page 1}}
+      <a class="btn-admin-ghost btn-admin-sm" href="{{.BasePath}}?page={{sub .Page 1}}" data-turbo-frame="_top">Previous</a>
+      {{end}}
+      {{if lt .Page .PageCount}}
+      <a class="btn-admin-ghost btn-admin-sm" href="{{.BasePath}}?page={{add .Page 1}}" data-turbo-frame="_top">Next</a>
+      {{end}}
+    </div>
+  </div>
+  {{end}}
+</div>
+
+<style>
+  .admin-extension-app .backup-extension-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1.25rem;
+    flex-wrap: wrap;
+  }
+  .admin-extension-app .backup-tabs {
+    display: inline-flex;
+    gap: 0.25rem;
+    padding: 0.25rem;
+    border: 1px solid var(--admin-border);
+    border-radius: 999px;
+    background: var(--admin-muted);
+  }
+  .admin-extension-app .backup-tab {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.4rem 0.9rem;
+    border-radius: 999px;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--admin-muted-fg);
+    text-decoration: none;
+  }
+  .admin-extension-app .backup-tab:hover { color: var(--admin-foreground); }
+  .admin-extension-app .backup-tab.is-active {
+    background: var(--admin-card);
+    color: var(--admin-foreground);
+    box-shadow: var(--admin-shadow-xs);
+  }
+  .admin-extension-app .backup-header-actions {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+  }
+
+  .admin-extension-app .backup-status {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1.1rem 1.25rem;
+    margin-bottom: 1rem;
+    border: 1px solid var(--admin-border);
+    border-radius: var(--admin-radius-lg);
+    background: var(--admin-card);
+  }
+  .admin-extension-app .backup-status-success {
+    border-color: rgba(22, 163, 74, 0.28);
+    background: rgba(22, 163, 74, 0.06);
+  }
+  .admin-extension-app .backup-status-warning {
+    border-color: rgba(249, 115, 22, 0.3);
+    background: rgba(249, 115, 22, 0.07);
+  }
+  .admin-extension-app .backup-status-muted {
+    border-color: var(--admin-border);
+    background: var(--admin-card);
+  }
+  .admin-extension-app .backup-status-main {
+    display: flex;
+    gap: 0.9rem;
+    align-items: flex-start;
+    min-width: 0;
+  }
+  .admin-extension-app .backup-status-icon {
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    font-size: 1.25rem;
+  }
+  .admin-extension-app .backup-status-success .backup-status-icon { color: #16a34a; background: rgba(22, 163, 74, 0.12); }
+  .admin-extension-app .backup-status-warning .backup-status-icon { color: #ea580c; background: rgba(249, 115, 22, 0.14); }
+  .admin-extension-app .backup-status-muted .backup-status-icon { color: var(--admin-primary); background: rgba(37, 99, 235, 0.1); }
+  .admin-extension-app .backup-status-kicker {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.25rem;
+    font-size: 0.75rem;
+    font-weight: 650;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #52525b;
+  }
+  .admin-extension-app .backup-status-title {
+    margin: 0;
+    font-size: 1.125rem;
+    font-weight: 650;
+    letter-spacing: -0.01em;
+  }
+  .admin-extension-app .backup-status-detail {
+    margin: 0.25rem 0 0;
+    font-size: 0.875rem;
+    color: var(--admin-muted-fg);
+    line-height: 1.45;
+  }
+
+  .admin-extension-app .backup-checklist {
+    list-style: none;
+    margin: 0 0 1.25rem;
+    padding: 0;
+    display: grid;
+    gap: 0.5rem;
+  }
+  .admin-extension-app .backup-check {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 0.85rem;
+    align-items: center;
+    padding: 0.85rem 1rem;
+    border: 1px solid var(--admin-border);
+    border-radius: var(--admin-radius-lg);
+    background: var(--admin-card);
+  }
+  .admin-extension-app .backup-check.is-done {
+    border-color: rgba(22, 163, 74, 0.22);
+    background: rgba(22, 163, 74, 0.04);
+  }
+  .admin-extension-app .backup-check.is-current {
+    border-color: rgba(37, 99, 235, 0.28);
+    box-shadow: inset 3px 0 0 var(--admin-primary);
+  }
+  .admin-extension-app .backup-check-mark {
+    width: 1.75rem;
+    height: 1.75rem;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: #52525b;
+    background: var(--admin-muted);
+  }
+  .admin-extension-app .backup-check.is-done .backup-check-mark {
+    color: #fff;
+    background: #16a34a;
+  }
+  .admin-extension-app .backup-check.is-current .backup-check-mark {
+    color: #fff;
+    background: var(--admin-primary);
+  }
+  .admin-extension-app .backup-check-body {
+    min-width: 0;
+    display: grid;
+    gap: 0.1rem;
+  }
+  .admin-extension-app .backup-check-body strong {
+    font-size: 0.9375rem;
+  }
+  .admin-extension-app .backup-check-body span {
+    font-size: 0.8125rem;
+    color: var(--admin-muted-fg);
+  }
+  .admin-extension-app .backup-check-link {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  .admin-extension-app .backup-meta-row {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.75rem;
+    margin-bottom: 1.25rem;
+  }
+  .admin-extension-app .backup-meta-card {
+    display: grid;
+    gap: 0.3rem;
+    padding: 0.9rem 1rem;
+    border: 1px solid var(--admin-border);
+    border-radius: var(--admin-radius-lg);
+    background: var(--admin-card);
+  }
+  .admin-extension-app .backup-meta-label {
+    font-size: 0.72rem;
+    font-weight: 650;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #52525b;
+  }
+  .admin-extension-app .backup-meta-card a {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    width: fit-content;
+  }
+  .admin-extension-app .backup-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+  .admin-extension-app .backup-trigger {
+    text-transform: capitalize;
+  }
+
+  @media (max-width: 900px) {
+    .admin-extension-app .backup-meta-row { grid-template-columns: 1fr; }
+    .admin-extension-app .backup-status { flex-direction: column; align-items: stretch; }
+  }
+</style>
