@@ -4,6 +4,7 @@ import (
 	"embed"
 	"encoding/json"
 	"log"
+	"os"
 	"sync"
 
 	"github.com/rob121/cannon/extension"
@@ -78,7 +79,9 @@ type backupApp struct {
 
 func main() {
 	app, s := newServer()
-	app.startScheduler()
+	if _, dataQuery := extension.DataArgKey(os.Args); !dataQuery {
+		app.startScheduler()
+	}
 	if err := s.Run(); err != nil {
 		log.Fatal(err)
 	}
