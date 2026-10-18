@@ -19,7 +19,7 @@ const (
 	extensionName        = "cannon-ext-backup-gdrive"
 	extensionTitle       = "Google Drive Backup"
 	extensionDescription = "Backs up Cannon data_root and sites.json to Google Drive on a schedule or on demand."
-	extensionVersion     = "0.1.0"
+	extensionVersion     = "0.1.1"
 	updateURLBase        = "https://github.com/rob121/cannon-ext-backup-gdrive/releases/download"
 	defaultAdminMenu     = "Drive Backup"
 	configSection        = "schedule"
@@ -71,6 +71,9 @@ type backupApp struct {
 	running    bool
 	oauthState sync.Map // state -> expiry unix
 	scheduler  *backupScheduler
+
+	schemaOnce sync.Once
+	schemaErr  error
 }
 
 func main() {
@@ -141,10 +144,7 @@ func (app *backupApp) install(req extension.WireRequest) error {
 	if err != nil {
 		return err
 	}
-	if err := extension.MigrateConfigurationStore(db, app.settingsTable); err != nil {
-		return err
-	}
-	return db.Table(app.logsTable).AutoMigrate(&backupLog{})
+	return app.ensureSchema(db)
 }
 
 func (app *backupApp) onScheduleSaved(section string, data map[string]any) {

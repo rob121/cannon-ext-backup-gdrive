@@ -52,9 +52,6 @@ func (s configStore) Load(section string) (map[string]any, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := extension.MigrateConfigurationStore(db, s.table); err != nil {
-		return nil, err
-	}
 	return extension.DBConfigurationStore(db, s.table).Load(section)
 }
 
@@ -70,9 +67,6 @@ func (s configStore) Save(section string, data map[string]any) error {
 	}
 	db, _, err := extension.OpenDB()
 	if err != nil {
-		return err
-	}
-	if err := extension.MigrateConfigurationStore(db, s.table); err != nil {
 		return err
 	}
 	if err := extension.DBConfigurationStore(db, s.table).Save(section, data); err != nil {
@@ -148,8 +142,19 @@ func (conn connectionSettings) ready() bool {
 	return conn.connected() && conn.FolderID != ""
 }
 
+func (app *backupApp) ensureSchema(db *gorm.DB) error {
+	app.schemaOnce.Do(func() {
+		app.schemaErr = extension.MigrateConfigurationStore(db, app.settingsTable)
+		if app.schemaErr != nil {
+			return
+		}
+		app.schemaErr = db.Table(app.logsTable).AutoMigrate(&backupLog{})
+	})
+	return app.schemaErr
+}
+
 func (app *backupApp) ensureLogsTable(db *gorm.DB) error {
-	return db.Table(app.logsTable).AutoMigrate(&backupLog{})
+	return app.ensureSchema(db)
 }
 
 func (app *backupApp) insertLog(db *gorm.DB, row *backupLog) error {

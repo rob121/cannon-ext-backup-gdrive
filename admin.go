@@ -36,10 +36,7 @@ func (app *backupApp) admin(req extension.WireRequest) extension.WireResponse {
 	if err != nil {
 		return extension.Error(http.StatusInternalServerError, err.Error())
 	}
-	if err := app.ensureLogsTable(db); err != nil {
-		return extension.Error(http.StatusInternalServerError, err.Error())
-	}
-	if err := extension.MigrateConfigurationStore(db, app.settingsTable); err != nil {
+	if err := app.ensureSchema(db); err != nil {
 		return extension.Error(http.StatusInternalServerError, err.Error())
 	}
 
@@ -148,25 +145,25 @@ func (app *backupApp) adminBackups(req extension.WireRequest, adminURL *url.URL,
 }
 
 type backupStatusView struct {
-	Ready            bool
-	HasCredentials   bool
-	Connected        bool
-	HasFolder        bool
-	ScheduleOn       bool
-	Frequency        string
-	RetainCount      int
-	FolderName       string
-	AccountEmail     string
-	Tone             string // success | warning | muted
-	Headline         string
-	Detail           string
-	NextLabel        string
-	NextURL          string
-	LastStatus       string
-	LastStartedAt    time.Time
-	LastArchiveName  string
-	CompletedSteps   int
-	TotalSteps       int
+	Ready           bool
+	HasCredentials  bool
+	Connected       bool
+	HasFolder       bool
+	ScheduleOn      bool
+	Frequency       string
+	RetainCount     int
+	FolderName      string
+	AccountEmail    string
+	Tone            string // success | warning | muted
+	Headline        string
+	Detail          string
+	NextLabel       string
+	NextURL         string
+	LastStatus      string
+	LastStartedAt   time.Time
+	LastArchiveName string
+	CompletedSteps  int
+	TotalSteps      int
 }
 
 func buildBackupStatus(conn connectionSettings, schedule scheduleSettings, rows []backupLog, total int64, basePath string) backupStatusView {
